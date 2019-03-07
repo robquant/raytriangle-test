@@ -1,10 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
-	"math/rand"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 type Vec3 struct {
@@ -39,9 +41,9 @@ func (self Vec3) Normalize() Vec3 {
 	return Vec3{self.x / len, self.y / len, self.z / len}
 }
 
-func ray_triangle_intersect(r Ray, v0, v1, v2 Vec3) float32 {
-	v0v1 := v1.Sub(v0)
-	v0v2 := v2.Sub(v0)
+func ray_triangle_intersect(r *Ray, v0, v1, v2 *Vec3) float32 {
+	v0v1 := v1.Sub(*v0)
+	v0v2 := v2.Sub(*v0)
 	pvec := r.Direction.Cross(v0v2)
 
 	det := v0v1.Dot(pvec)
@@ -51,7 +53,7 @@ func ray_triangle_intersect(r Ray, v0, v1, v2 Vec3) float32 {
 	}
 
 	invDet := 1.0 / det
-	tvec := r.Orig.Sub(v0)
+	tvec := r.Orig.Sub(*v0)
 	u := tvec.Dot(pvec) * invDet
 
 	if u < 0 || u > 1 {
@@ -85,9 +87,9 @@ func generate_random_triangles(numTriangles int) []Vec3 {
 	return vertices
 }
 
-func random_sphere() Vec3 {
-	r1 := rand.Float64()
-	r2 := rand.Float64()
+func random_sphere(rgen *rand.Rand) Vec3 {
+	r1 := rgen.Float64()
+	r2 := rgen.Float64()
 	lat := math.Acos(2*r1-1) - math.Pi/2
 	lon := 2 * math.Pi * r2
 
@@ -96,44 +98,67 @@ func random_sphere() Vec3 {
 		float32(math.Sin(lat))}
 }
 
-const NUM_RAYS = 100
+const NUM_RAYS = 400
 const NUM_TRIANGLES = 1000 * 1000
+
+type Result struct {
+	numHit, numMiss int
+}
 
 func main() {
 	vertices := generate_random_triangles(NUM_TRIANGLES)
 	num_vertices := NUM_TRIANGLES * 3
 
-	num_hit := 0
-	num_miss := 0
+	nParallelPtr := flag.Int("nPar", 1, "number of parallel processes")
+	flag.Parse()
 
-	r := Ray{}
+	resultChan := make(chan Result)
+	nParallel := *nParallelPtr
 
-	rand.Seed(time.Now().UnixNano())
+	numHit := 0
+	numMiss := 0
 
 	t_start := time.Now()
 
-	for i := 0; i < NUM_RAYS; i++ {
-		r.Orig = random_sphere()
-		r.Direction = random_sphere().Sub(r.Orig).Normalize()
+	for i := 0; i < nParallel; i++ {
+		go func(result chan Result) {
 
-		for j := 0; j < num_vertices/3; j++ {
-			t := ray_triangle_intersect(r, vertices[j*3+0],
-				vertices[j*3+1],
-				vertices[j*3+2])
-			if t >= 0 {
-				num_hit += 1
-			} else {
-				num_miss += 1
+			seed := time.Now().UnixNano()
+			rgen := rand.New(rand.NewSource(uint64(seed)))
+			numHit := 0
+			numMiss := 0
+			r := Ray{}
+			for i := 0; i < NUM_RAYS; i++ {
+				r.Orig = random_sphere(rgen)
+				r.Direction = random_sphere(rgen).Sub(r.Orig).Normalize()
+
+				for j := 0; j < num_vertices/3; j++ {
+					t := ray_triangle_intersect(&r, &vertices[j*3+0],
+						&vertices[j*3+1],
+						&vertices[j*3+2])
+					if t >= 0 {
+						numHit += 1
+					} else {
+						numMiss += 1
+					}
+				}
 			}
-		}
+			resultChan <- Result{numHit, numMiss}
+		}(resultChan)
+	}
+
+	for i := 0; i < nParallel; i++ {
+		result := <-resultChan
+		numHit += result.numHit
+		numMiss += result.numMiss
 	}
 
 	t_total := time.Since(t_start)
 
-	num_tests := NUM_RAYS * NUM_TRIANGLES
+	num_tests := NUM_RAYS * NUM_TRIANGLES * nParallel
 	// hit_perc := float64(num_hit) / float64(num_tests) * 100
 	// miss_perc := float64(num_miss) / float64(num_tests) * 100
 	mtests_per_second := float64(num_tests) / t_total.Seconds() / 1000000
-	fmt.Printf("Hits: %v\n", num_hit)
+	fmt.Printf("Hits: %v\n", numHit)
 	fmt.Printf("Millions of tests per second: %.2f\n", mtests_per_second)
 }
