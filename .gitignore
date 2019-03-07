@@ -4,3 +4,5 @@ nimcache
 *.swp
 *.class
 *.s
+csharp/bin
+csharp/obj
