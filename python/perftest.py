@@ -1,6 +1,6 @@
 import math
 import random
-from timeit import default_timer as timer
+import time
 
 
 class Vec3:
@@ -92,48 +92,51 @@ def random_sphere():
                 math.sin(lat))
 
 
-NUM_RAYS = 100
-NUM_TRIANGLES = 1000 * 1000
+def main():
+    NUM_RAYS = 100
+    NUM_TRIANGLES = 1000 * 100
 
-random.seed()
+    random.seed()
 
-vertices = generate_random_triangles(NUM_TRIANGLES)
-num_vertices = NUM_TRIANGLES * 3
+    vertices = generate_random_triangles(NUM_TRIANGLES)
+    num_vertices = NUM_TRIANGLES * 3
 
-num_hit = 0
-num_miss = 0
+    num_hit = 0
+    num_miss = 0
 
-r = Ray()
+    r = Ray()
 
-t_start = timer()
+    t_start = time.time()
 
-for i in range(0, NUM_RAYS):
-    r.orig = random_sphere()
-    r.direction = random_sphere().sub(r.orig).normalize()
+    for i in range(0, NUM_RAYS):
+        r.orig = random_sphere()
+        r.direction = random_sphere().sub(r.orig).normalize()
 
-    for j in range(0, int(num_vertices / 3)):
-        t = ray_triangle_intersect(r, vertices[j*3 + 0],
-                                      vertices[j*3 + 1],
-                                      vertices[j*3 + 2])
-        if t >= 0:
-          num_hit += 1
-        else:
-          num_miss += 1
+        for j in range(0, int(num_vertices / 3)):
+            t = ray_triangle_intersect(r, vertices[j*3 + 0],
+                                          vertices[j*3 + 1],
+                                          vertices[j*3 + 2])
+            if t >= 0:
+              num_hit += 1
+            else:
+              num_miss += 1
 
-t_end = timer()
-t_total = t_end - t_start
+    t_end = time.time()
+    t_total = t_end - t_start
 
-num_tests = NUM_RAYS * NUM_TRIANGLES
-hit_perc  = float(num_hit) / num_tests * 100
-miss_perc = float(num_miss) / num_tests * 100
-mtests_per_second = float(num_tests) / t_total / 1000000
+    num_tests = NUM_RAYS * NUM_TRIANGLES
+    hit_perc  = float(num_hit) / num_tests * 100
+    miss_perc = float(num_miss) / num_tests * 100
+    mtests_per_second = float(num_tests) / t_total / 1000000
 
-#print 'Total intersection tests:  %11d' % (num_tests)
-#print '  Hits:\t\t\t   %11d (%5.2f%%)' % (num_hit, hit_perc)
-#print '  Misses:\t\t   %11d (%5.2f%%)' % (num_miss, miss_perc)
-#print
-#print '  Total time:\t\t\t  %6.2f seconds' % (t_total)
-#print '  Millions of tests per second:\t  %6.2f' % (mtests_per_second)
-print(mtests_per_second)
-print(t_total)
+    #print 'Total intersection tests:  %11d' % (num_tests)
+    #print '  Hits:\t\t\t   %11d (%5.2f%%)' % (num_hit, hit_perc)
+    #print '  Misses:\t\t   %11d (%5.2f%%)' % (num_miss, miss_perc)
+    #print
+    #print '  Total time:\t\t\t  %6.2f seconds' % (t_total)
+    #print '  Millions of tests per second:\t  %6.2f' % (mtests_per_second)
+    print(mtests_per_second)
+    print(t_total)
 
+if __name__ == '__main__':
+    main()
